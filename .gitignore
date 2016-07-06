@@ -1,0 +1,58 @@
+dataDir <- "C:\\Users\\Chinmay\\Desktop\\KaggleProjects\\GroupoBimbo"
+flightcsv <- file.path(dataDir,"2007.csv")
+
+flightXdf <- file.path(dataDir,"2007.xdf")
+
+system.time(rxImport(inData=flightcsv,outFile=flightXdf,
+                     overwrite=TRUE))
+rxOptions(reportProgress = 0)
+#dataaa<-
+rxGetInfo(data = flightXdf,getVarInfo = TRUE, varsToKeep = c("ArrDelay","DepDelay","Distance"))
+rxSummary(~DepDelay + Distance,data = flightXdf)
+rxHistogram(~DepDelay,data = flightXdf,xAxisMinMax = c(-50,150),numBreaks = 500,xNumTicks = 10)
+
+#to see if delayed flights actually fly faster
+#create air speed----air time and distance
+
+#rxDataStep("manipulates xdf files ,,transforming new making new xdf. only variable we need")
+
+NewflightXdf <- file.path(dataDir,"2007_airSpeed.xdf")
+
+system.time(rxDataStep(inData=flightXdf,outFile=NewflightXdf,varsToKeep = c("AirTime","Distance","DepDelay","ArrDelay"),transforms = 
+                         list(airSpeed = Distance / AirTime),
+                     overwrite=TRUE)) #here time is miles per mintues. understood it from rxsummary of new variable so change it to miles per hour
+rxGetInfo(data = NewflightXdf,getVarInfo = TRUE)
+
+rxSummary(~airSpeed,data = NewflightXdf)
+
+rxHistogram(~airSpeed,data = NewflightXdf)
+rxDataStep(inData=NewflightXdf,outFile=NewflightXdf,varsToKeep = c("airSpeed"),transforms = 
+             list(airSpeed = airSpeed * 60),
+           overwrite=TRUE)
+rxSummary(~airSpeed,data = NewflightXdf)
+rxHistogram(~airSpeed,data = NewflightXdf,rowSelection = (airSpeed>50)&(airSpeed<750),scales = list(x=list(at=seq(100,700,by=100))),xlab=list(label="Air speed(mph)"),ylab=list(label="Frequency"),numBreaks = 5000,xNumTicks = 40)
+
+rxCor(formula = ~DepDelay + ArrDelay + airSpeed,data = NewflightXdf,
+rowSelection = (airSpeed >50) & (airSpeed <800))
+# linear regression function IN revocaleR
+#rxlinmod---> row selection here and lm()--> subset(in standard)
+
+system.time(reg1 <-rxLinMod(formula = airSpeed ~DepDelay,data = NewflightXdf,rowSelection = (airSpeed>50)&(airSpeed <800)))
+
+class(reg1)
+
+names(reg1)
+print(summary(reg1),header =FALSE)
+
+
+################################ SOME PROBLEM SO DO SEQUENCE FOR ############################
+
+rxDataStep(inData=NewflightXdf,outFile=NewflightXdf,varsToKeep = "DepDelay",transformVars = "DepDelay",transforms = 
+             list(F_DepDelay=cut(DepDelay,breaks = seq(from=-10, to=100,by=10))),append = "cols",
+           overwrite=TRUE)
+print(rxSummary(~F_DepDelay,data = NewflightXdf),header = FALSE)
+
+
+reg2 <-rxLinMod(formula = airSpeed ~F_DepDelay,data = NewflightXdf,rowSelection = (airSpeed>50)&(airSpeed <800),dropFirst = TRUE)
+class(reg2)
+print(summary(reg2),header =FALSE)
